@@ -14,9 +14,10 @@ import (
 )
 
 type MinIOStorage struct {
-	client    *minio.Client
-	bucket    string
-	publicURL string
+	client       *minio.Client
+	signerClient *minio.Client
+	bucket       string
+	publicURL    string
 }
 
 func NewMinIOStorage(cfg config.MinIOConfig) (*MinIOStorage, error) {
@@ -41,28 +42,47 @@ func NewMinIOStorage(cfg config.MinIOConfig) (*MinIOStorage, error) {
 		}
 	}
 
+	// Create a separate client for signing URLs using the Public URL (browser accessible)
+	// This ensures the Host header in the signature matches what the browser sends.
+	// Presigning is an offline operation, so this client doesn't need to be able to connect mostly,
+	// but it needs the correct endpoint config.
+	var signerClient *minio.Client
+	if cfg.PublicURL != "" {
+		u, err := url.Parse(cfg.PublicURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid public url: %w", err)
+		}
+		secure := u.Scheme == "https"
+		endpoint := u.Host
+
+		signerClient, err = minio.New(endpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+			Secure: secure,
+			Region: "us-east-1", // Validate that this prevents lookup
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create signer client: %w", err)
+		}
+	} else {
+		// Fallback to internal client if no public URL configured
+		signerClient = client
+	}
+
 	return &MinIOStorage{
-		client:    client,
-		bucket:    cfg.Bucket,
-		publicURL: cfg.PublicURL,
+		client:       client,
+		signerClient: signerClient,
+		bucket:       cfg.Bucket,
+		publicURL:    cfg.PublicURL,
 	}, nil
 }
 
 func (s *MinIOStorage) GeneratePresignedURL(ctx context.Context, objectName string, contentType string, expiry time.Duration) (string, error) {
-	presignedURL, err := s.client.PresignedPutObject(ctx, s.bucket, objectName, expiry)
+	// Use signerClient to generate URL with public endpoint logic
+	presignedURL, err := s.signerClient.PresignedPutObject(ctx, s.bucket, objectName, expiry)
 	if err != nil {
+		fmt.Printf("ERROR generating presigned URL: %v\n", err)
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
 	}
-
-	// Replace internal endpoint with public URL
-	if s.publicURL != "" {
-		publicURL, err := url.Parse(s.publicURL)
-		if err == nil {
-			presignedURL.Scheme = publicURL.Scheme
-			presignedURL.Host = publicURL.Host
-		}
-	}
-
 	return presignedURL.String(), nil
 }
 
@@ -99,7 +119,8 @@ func (s *MinIOStorage) GenerateObjectName(uploadType string, filename string) st
 
 func (s *MinIOStorage) GetPresignedGetURL(ctx context.Context, objectName string, expiry time.Duration) (string, error) {
 	reqParams := make(url.Values)
-	presignedURL, err := s.client.PresignedGetObject(ctx, s.bucket, objectName, expiry, reqParams)
+	// Use signerClient here too
+	presignedURL, err := s.signerClient.PresignedGetObject(ctx, s.bucket, objectName, expiry, reqParams)
 	if err != nil {
 		return "", err
 	}
