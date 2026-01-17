@@ -20,8 +20,7 @@ import {
     SelectContent,
     SelectItem,
 } from "@/components/ui/select";
-ChevronsUpDown
-} from "lucide-react";
+import { Loader2, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useFileUpload } from "@/hooks/use-file-upload";
@@ -84,7 +83,6 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
             setGtkType("");
             setPosition("");
             setSchoolId("");
-            setSchoolId("");
             setUploadId("");
         }
         setErrors({});
@@ -108,7 +106,6 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
                 if (birthDate) data.birth_date = birthDate;
                 if (gtkType) data.gtk_type = gtkType as GTKType;
                 if (position) data.position = position;
-                if (schoolId) data.school_id = schoolId;
                 if (schoolId) data.school_id = schoolId;
 
                 // Upload file if selected
@@ -140,8 +137,6 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
                 if (gtkType) data.gtk_type = gtkType as GTKType;
                 if (position) data.position = position;
                 if (schoolId) data.school_id = schoolId;
-                if (position) data.position = position;
-                if (schoolId) data.school_id = schoolId;
 
                 // Upload file if selected
                 if (selectedFile) {
@@ -161,7 +156,12 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
             }
             onSuccess();
         } catch (error) {
-            // ... error handling
+            console.error(error);
+            if (error instanceof ApiException) {
+                toast.error(error.message);
+            } else {
+                toast.error("Gagal menyimpan user");
+            }
         } finally {
             setLoading(false);
         }

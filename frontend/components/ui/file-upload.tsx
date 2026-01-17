@@ -228,46 +228,46 @@ export function FileUpload({
                             ) : (
                                 <div className="rounded-full bg-muted p-2">
                                     <File className="h-4 w-4" />
-                                    end
+                                </div>
                             )}
 
-                                    <div className="grid gap-0.5">
-                                        <p className="text-sm font-medium truncate max-w-[200px]">{internalFile?.name || "File Tersimpan"}</p>
-                                        <p className="text-xs text-muted-foreground">{internalFile ? formatFileSize(internalFile.size) : "Siap"}</p>
-                                    </div>
-                                </div>
-                        
-                        {!uploading && !disabled && (
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-muted-foreground hover:text-destructive"
-                                    onClick={handleRemove}
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            )}
+                            <div className="grid gap-0.5">
+                                <p className="text-sm font-medium truncate max-w-[200px]">{internalFile?.name || "File Tersimpan"}</p>
+                                <p className="text-xs text-muted-foreground">{internalFile ? formatFileSize(internalFile.size) : "Siap"}</p>
+                            </div>
                         </div>
 
-                        {(uploading || progress > 0) && (
-                            <div className="mt-3 space-y-1">
-                                <div className="flex justify-between text-xs">
-                                    <span>{uploading ? "Mengupload..." : (manualUpload && !uploadId ? "Menunggu Submit" : "Selesai")}</span>
-                                    <span>{Math.round(progress)}%</span>
-                                </div>
-                                <Progress value={progress} className="h-1" />
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="mt-2 text-xs text-destructive flex items-center gap-1">
-                                <AlertCircle className="h-3 w-3" />
-                                {error}
-                            </div>
+                        {!uploading && !disabled && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground hover:text-destructive"
+                                onClick={handleRemove}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
                         )}
                     </div>
-            )}
+
+                    {(uploading || progress > 0) && (
+                        <div className="mt-3 space-y-1">
+                            <div className="flex justify-between text-xs">
+                                <span>{uploading ? "Mengupload..." : (manualUpload && !uploadId ? "Menunggu Submit" : "Selesai")}</span>
+                                <span>{Math.round(progress)}%</span>
+                            </div>
+                            <Progress value={progress} className="h-1" />
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="mt-2 text-xs text-destructive flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {error}
+                        </div>
+                    )}
                 </div>
-            );
+            )}
+        </div>
+    );
 }

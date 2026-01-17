@@ -37,7 +37,6 @@ import {
 import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { toast } from "sonner";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import type {
@@ -50,13 +49,13 @@ import type {
     MentorDetail,
     ParticipantDetail,
     InterestDetail,
+    UserListItem,
+    ListResponse,
 } from "@/types";
 import {
     TALENT_TYPE_LABELS,
     COMPETITION_LEVEL_LABELS,
     TALENT_FIELD_LABELS,
-    UserListItem,
-    ListResponse,
 } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -73,7 +72,6 @@ export function TalentModal({ open, onOpenChange, talent, onSuccess }: TalentMod
 
     const isEdit = !!talent;
     const [loading, setLoading] = useState(false);
-    const [talentType, setTalentType] = useState<TalentType>("peserta_pelatihan");
     const [talentType, setTalentType] = useState<TalentType>("peserta_pelatihan");
     const [uploadId, setUploadId] = useState<string>("");
     const [fileUrl, setFileUrl] = useState<string>("");
@@ -199,293 +197,292 @@ export function TalentModal({ open, onOpenChange, talent, onSuccess }: TalentMod
                 detail,
             };
 
-        };
-
-        // Upload file if selected
-        if (selectedFile) {
-            try {
-                const newUploadId = await upload(selectedFile, "talent_certificate");
-                payload.upload_id = newUploadId;
-            } catch (err) {
-                setLoading(false);
-                return;
+            // Upload file if selected
+            if (selectedFile) {
+                try {
+                    const newUploadId = await upload(selectedFile, "talent_certificate");
+                    payload.upload_id = newUploadId;
+                } catch (err) {
+                    setLoading(false);
+                    return;
+                }
+            } else if (uploadId) {
+                payload.upload_id = uploadId;
             }
-        } else if (uploadId) {
-            payload.upload_id = uploadId;
+
+            if (isAdmin && selectedUserId) {
+                (payload as any).user_id = selectedUserId;
+            }
+
+            const baseUrl = isAdmin ? "/talents" : "/me/talents";
+
+            if (isEdit) {
+                await api.put(`${baseUrl}/${talent.id}`, payload);
+                toast.success("Talenta berhasil diperbarui");
+            } else {
+                await api.post(baseUrl, payload);
+                toast.success("Talenta berhasil ditambahkan");
+            }
+            onSuccess();
+        } catch (error) {
+            console.error(error);
+            if (error instanceof ApiException) {
+                toast.error(error.message);
+            } else {
+                toast.error("Gagal menyimpan data talenta");
+            }
+        } finally {
+            setLoading(false);
         }
+    };
 
-        if (isAdmin && selectedUserId) {
-            // Add user_id to payload if Admin is creating/editing
-            // Not standard field in UpdateTalentRequest but backend might handle it or we pass it as query param?
-            // Based on standard, usually `user_id` is in body for Create.
-            // Assuming backend accepts `user_id` for Create/Update by admin.
-            (payload as any).user_id = selectedUserId;
-        }
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{isEdit ? "Edit Talenta" : "Tambah Talenta Baru"}</DialogTitle>
+                    <DialogDescription>
+                        Isi formulir berikut untuk mengajukan data talenta baru.
+                    </DialogDescription>
+                </DialogHeader>
 
-        const baseUrl = isAdmin ? "/talents" : "/me/talents";
+                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                    {/* Admin: User Select */}
+                    {isAdmin && !isEdit && (
+                        <div className="grid gap-2">
+                            <Label>Pilih GTK</Label>
+                            <Popover open={openUserSelect} onOpenChange={setOpenUserSelect}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={openUserSelect}
+                                        className="w-full justify-between"
+                                        disabled={loading || loadingUsers}
+                                    >
+                                        {selectedUserId
+                                            ? users.find((u) => u.id === selectedUserId)?.full_name || "User tidak ditemukan"
+                                            : "Pilih GTK..."}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                    <Command>
+                                        <CommandInput placeholder="Cari GTK..." />
+                                        <CommandList>
+                                            <CommandEmpty>GTK tidak ditemukan.</CommandEmpty>
+                                            <CommandGroup>
+                                                {users.map((u) => (
+                                                    <CommandItem
+                                                        key={u.id}
+                                                        value={u.full_name} // Search by name
+                                                        onSelect={() => {
+                                                            setSelectedUserId(u.id === selectedUserId ? "" : u.id);
+                                                            setOpenUserSelect(false);
+                                                        }}
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                "mr-2 h-4 w-4",
+                                                                selectedUserId === u.id ? "opacity-100" : "opacity-0"
+                                                            )}
+                                                        />
+                                                        <div className="flex flex-col">
+                                                            <span>{u.full_name}</span>
+                                                            <span className="text-xs text-muted-foreground">{u.school?.name}</span>
+                                                        </div>
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                    )}
 
-        if (isEdit) {
-            await api.put(`${baseUrl}/${talent.id}`, payload);
-            toast.success("Talenta berhasil diperbarui");
-        } else {
-            await api.post(baseUrl, payload);
-            toast.success("Talenta berhasil ditambahkan");
-        }
-        onSuccess();
-    } catch (error) {
-        // ... error handling
-    } finally {
-        setLoading(false);
-    }
-};
-
-return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-                <DialogTitle>{isEdit ? "Edit Talenta" : "Tambah Talenta Baru"}</DialogTitle>
-                <DialogDescription>
-                    Isi formulir berikut untuk mengajukan data talenta baru.
-                </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                {/* Admin: User Select */}
-                {isAdmin && !isEdit && (
                     <div className="grid gap-2">
-                        <Label>Pilih GTK</Label>
-                        <Popover open={openUserSelect} onOpenChange={setOpenUserSelect}>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={openUserSelect}
-                                    className="w-full justify-between"
-                                    disabled={loading || loadingUsers}
-                                >
-                                    {selectedUserId
-                                        ? users.find((u) => u.id === selectedUserId)?.full_name || "User tidak ditemukan"
-                                        : "Pilih GTK..."}
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Cari GTK..." />
-                                    <CommandList>
-                                        <CommandEmpty>GTK tidak ditemukan.</CommandEmpty>
-                                        <CommandGroup>
-                                            {users.map((u) => (
-                                                <CommandItem
-                                                    key={u.id}
-                                                    value={u.full_name} // Search by name
-                                                    onSelect={() => {
-                                                        setSelectedUserId(u.id === selectedUserId ? "" : u.id);
-                                                        setOpenUserSelect(false);
-                                                    }}
-                                                >
-                                                    <Check
-                                                        className={cn(
-                                                            "mr-2 h-4 w-4",
-                                                            selectedUserId === u.id ? "opacity-100" : "opacity-0"
-                                                        )}
-                                                    />
-                                                    <div className="flex flex-col">
-                                                        <span>{u.full_name}</span>
-                                                        <span className="text-xs text-muted-foreground">{u.school?.name}</span>
-                                                    </div>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
+                        <Label htmlFor="type">Jenis Talenta</Label>
+                        <Select
+                            value={talentType}
+                            onValueChange={(v) => !isEdit && setTalentType(v as TalentType)}
+                            disabled={loading || isEdit}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Pilih jenis talenta" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(TALENT_TYPE_LABELS).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
-                )}
 
-                <div className="grid gap-2">
-                    <Label htmlFor="type">Jenis Talenta</Label>
-                    <Select
-                        value={talentType}
-                        onValueChange={(v) => !isEdit && setTalentType(v as TalentType)}
-                        disabled={loading || isEdit}
-                    >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Pilih jenis talenta" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {Object.entries(TALENT_TYPE_LABELS).map(([key, label]) => (
-                                <SelectItem key={key} value={key}>{label}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                    {/* Type Specific Fields */}
+                    {talentType === "peserta_pelatihan" && (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="activityName">Nama Kegiatan</Label>
+                                <Input id="activityName" value={activityName} onChange={(e) => setActivityName(e.target.value)} required disabled={loading} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="organizer">Penyelenggara</Label>
+                                <Input id="organizer" value={organizer} onChange={(e) => setOrganizer(e.target.value)} required disabled={loading} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="startDate">Tanggal Mulai</Label>
+                                    <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required disabled={loading} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="durationDays">Durasi (Hari)</Label>
+                                    <Input id="durationDays" type="number" min="1" value={durationDays} onChange={(e) => setDurationDays(Number(e.target.value))} required disabled={loading} />
+                                </div>
+                            </div>
+                        </>
+                    )}
 
-                {/* Type Specific Fields */}
-                {talentType === "peserta_pelatihan" && (
-                    <>
-                        <div className="grid gap-2">
-                            <Label htmlFor="activityName">Nama Kegiatan</Label>
-                            <Input id="activityName" value={activityName} onChange={(e) => setActivityName(e.target.value)} required disabled={loading} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="organizer">Penyelenggara</Label>
-                            <Input id="organizer" value={organizer} onChange={(e) => setOrganizer(e.target.value)} required disabled={loading} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
+                    {talentType === "pembimbing_lomba" && (
+                        <>
                             <div className="grid gap-2">
-                                <Label htmlFor="startDate">Tanggal Mulai</Label>
-                                <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required disabled={loading} />
+                                <Label htmlFor="competitionName">Nama Lomba</Label>
+                                <Input id="competitionName" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} required disabled={loading} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="level">Jenjang</Label>
+                                    <Select value={level} onValueChange={(v) => setLevel(v as CompetitionLevel)} disabled={loading}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(COMPETITION_LEVEL_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="field">Bidang</Label>
+                                    <Select value={field} onValueChange={(v) => setField(v as TalentField)} disabled={loading}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(TALENT_FIELD_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="durationDays">Durasi (Hari)</Label>
-                                <Input id="durationDays" type="number" min="1" value={durationDays} onChange={(e) => setDurationDays(Number(e.target.value))} required disabled={loading} />
+                                <Label htmlFor="organizer">Penyelenggara</Label>
+                                <Input id="organizer" value={organizer} onChange={(e) => setOrganizer(e.target.value)} required disabled={loading} />
                             </div>
-                        </div>
-                    </>
-                )}
+                            <div className="grid gap-2">
+                                <Label htmlFor="achievement">Prestasi</Label>
+                                <Input id="achievement" value={achievement} onChange={(e) => setAchievement(e.target.value)} required disabled={loading} placeholder="Contoh: Juara 1" />
+                            </div>
+                        </>
+                    )}
 
-                {talentType === "pembimbing_lomba" && (
-                    <>
-                        <div className="grid gap-2">
-                            <Label htmlFor="competitionName">Nama Lomba</Label>
-                            <Input id="competitionName" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} required disabled={loading} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
+                    {talentType === "peserta_lomba" && (
+                        <>
                             <div className="grid gap-2">
-                                <Label htmlFor="level">Jenjang</Label>
-                                <Select value={level} onValueChange={(v) => setLevel(v as CompetitionLevel)} disabled={loading}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {Object.entries(COMPETITION_LEVEL_LABELS).map(([key, label]) => (
-                                            <SelectItem key={key} value={key}>{label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="competitionName">Nama Lomba</Label>
+                                <Input id="competitionName" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} required disabled={loading} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="level">Jenjang</Label>
+                                    <Select value={level} onValueChange={(v) => setLevel(v as CompetitionLevel)} disabled={loading}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(COMPETITION_LEVEL_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="field">Bidang</Label>
+                                    <Select value={field} onValueChange={(v) => setField(v as TalentField)} disabled={loading}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(TALENT_FIELD_LABELS).map(([key, label]) => (
+                                                <SelectItem key={key} value={key}>{label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="field">Bidang</Label>
-                                <Select value={field} onValueChange={(v) => setField(v as TalentField)} disabled={loading}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {Object.entries(TALENT_FIELD_LABELS).map(([key, label]) => (
-                                            <SelectItem key={key} value={key}>{label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="organizer">Penyelenggara</Label>
+                                <Input id="organizer" value={organizer} onChange={(e) => setOrganizer(e.target.value)} required disabled={loading} />
                             </div>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="organizer">Penyelenggara</Label>
-                            <Input id="organizer" value={organizer} onChange={(e) => setOrganizer(e.target.value)} required disabled={loading} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="achievement">Prestasi</Label>
-                            <Input id="achievement" value={achievement} onChange={(e) => setAchievement(e.target.value)} required disabled={loading} placeholder="Contoh: Juara 1" />
-                        </div>
-                    </>
-                )}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="startDate">Tanggal Mulai</Label>
+                                    <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required disabled={loading} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="durationDays">Durasi (Hari)</Label>
+                                    <Input id="durationDays" type="number" min="1" value={durationDays} onChange={(e) => setDurationDays(Number(e.target.value))} required disabled={loading} />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="competitionField">Bidang Lomba</Label>
+                                <Input id="competitionField" value={competitionField} onChange={(e) => setCompetitionField(e.target.value)} required disabled={loading} placeholder="Contoh: Guru Matematika" />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="achievement">Prestasi</Label>
+                                <Input id="achievement" value={achievement} onChange={(e) => setAchievement(e.target.value)} required disabled={loading} placeholder="Contoh: Juara 2" />
+                            </div>
+                        </>
+                    )}
 
-                {talentType === "peserta_lomba" && (
-                    <>
-                        <div className="grid gap-2">
-                            <Label htmlFor="competitionName">Nama Lomba</Label>
-                            <Input id="competitionName" value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} required disabled={loading} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
+                    {talentType === "minat_bakat" && (
+                        <>
                             <div className="grid gap-2">
-                                <Label htmlFor="level">Jenjang</Label>
-                                <Select value={level} onValueChange={(v) => setLevel(v as CompetitionLevel)} disabled={loading}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {Object.entries(COMPETITION_LEVEL_LABELS).map(([key, label]) => (
-                                            <SelectItem key={key} value={key}>{label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="interestName">Nama Minat/Bakat</Label>
+                                <Input id="interestName" value={interestName} onChange={(e) => setInterestName(e.target.value)} required disabled={loading} />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="field">Bidang</Label>
-                                <Select value={field} onValueChange={(v) => setField(v as TalentField)} disabled={loading}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {Object.entries(TALENT_FIELD_LABELS).map(([key, label]) => (
-                                            <SelectItem key={key} value={key}>{label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Label htmlFor="description">Deskripsi</Label>
+                                <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required disabled={loading} rows={3} placeholder="Jelaskan detail minat/bakat" />
                             </div>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="organizer">Penyelenggara</Label>
-                            <Input id="organizer" value={organizer} onChange={(e) => setOrganizer(e.target.value)} required disabled={loading} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="startDate">Tanggal Mulai</Label>
-                                <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required disabled={loading} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="durationDays">Durasi (Hari)</Label>
-                                <Input id="durationDays" type="number" min="1" value={durationDays} onChange={(e) => setDurationDays(Number(e.target.value))} required disabled={loading} />
-                            </div>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="competitionField">Bidang Lomba</Label>
-                            <Input id="competitionField" value={competitionField} onChange={(e) => setCompetitionField(e.target.value)} required disabled={loading} placeholder="Contoh: Guru Matematika" />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="achievement">Prestasi</Label>
-                            <Input id="achievement" value={achievement} onChange={(e) => setAchievement(e.target.value)} required disabled={loading} placeholder="Contoh: Juara 2" />
-                        </div>
-                    </>
-                )}
+                        </>
+                    )}
 
-                {talentType === "minat_bakat" && (
-                    <>
-                        <div className="grid gap-2">
-                            <Label htmlFor="interestName">Nama Minat/Bakat</Label>
-                            <Input id="interestName" value={interestName} onChange={(e) => setInterestName(e.target.value)} required disabled={loading} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="description">Deskripsi</Label>
-                            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required disabled={loading} rows={3} placeholder="Jelaskan detail minat/bakat" />
-                        </div>
-                    </>
-                )}
+                    {/* Upload Certificate */}
+                    <div className="grid gap-2">
+                        <Label>Bukti / Sertifikat (PDF/Image, Max 5MB)</Label>
+                        <FileUpload
+                            uploadType="talent_certificate"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            value={fileUrl}
+                            manualUpload={true}
+                            onFileChange={setSelectedFile}
+                            onRemove={() => {
+                                setFileUrl("");
+                                setUploadId("");
+                                setSelectedFile(null);
+                            }}
+                            progress={uploadProgress}
+                            isUploading={isUploading}
+                            disabled={loading}
+                        />
+                    </div>
 
-                {/* Upload Certificate */}
-                <div className="grid gap-2">
-                    <Label>Bukti / Sertifikat (PDF/Image, Max 5MB)</Label>
-                    <FileUpload
-                        uploadType="talent_certificate"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        value={fileUrl}
-                        manualUpload={true}
-                        onFileChange={setSelectedFile}
-                        onRemove={() => {
-                            setFileUrl("");
-                            setUploadId("");
-                            setSelectedFile(null);
-                        }}
-                        progress={uploadProgress}
-                        isUploading={isUploading}
-                        disabled={loading}
-                    />
-                </div>
-
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-                        Batal
-                    </Button>
-                    <Button type="submit" disabled={loading}>
-                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isEdit ? "Simpan Perubahan" : "Ajukan Talenta"}
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
-);
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                            Batal
+                        </Button>
+                        <Button type="submit" disabled={loading}>
+                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isEdit ? "Simpan Perubahan" : "Ajukan Talenta"}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
 }
