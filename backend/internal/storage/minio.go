@@ -53,6 +53,16 @@ func (s *MinIOStorage) GeneratePresignedURL(ctx context.Context, objectName stri
 	if err != nil {
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
 	}
+
+	// Replace internal endpoint with public URL
+	if s.publicURL != "" {
+		publicURL, err := url.Parse(s.publicURL)
+		if err == nil {
+			presignedURL.Scheme = publicURL.Scheme
+			presignedURL.Host = publicURL.Host
+		}
+	}
+
 	return presignedURL.String(), nil
 }
 

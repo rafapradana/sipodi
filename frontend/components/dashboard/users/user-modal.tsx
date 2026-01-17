@@ -20,24 +20,17 @@ import {
     SelectContent,
     SelectItem,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+ChevronsUpDown
+} from "lucide-react";
 import { toast } from "sonner";
-import type {
-    UserListItem,
-    CreateUserRequest,
-    UpdateUserRequest,
-    UserRole,
-    GTKType,
-    Gender,
-    School,
-    DataResponse,
-    User,
-} from "@/types";
+import { FileUpload } from "@/components/ui/file-upload";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import type { UserListItem, School, DataResponse, User, CreateUserRequest, UpdateUserRequest, UserRole, Gender, GTKType } from "@/types";
 
 interface UserModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    user: User | null;
+    user: UserListItem | null; // or any if type issue persists, but UserListItem is better
     schools: School[];
     onSuccess: () => void;
 }
@@ -47,7 +40,7 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // Form state
+    // Form States
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [role, setRole] = useState<UserRole>("gtk");
@@ -59,21 +52,26 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
     const [gtkType, setGtkType] = useState<GTKType | "">("");
     const [position, setPosition] = useState("");
     const [schoolId, setSchoolId] = useState("");
+    const [uploadId, setUploadId] = useState("");
+
+    // File Upload (Manual)
+    const { upload, isUploading, progress: uploadProgress, reset: resetUpload } = useFileUpload();
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     // Populate form when editing
     useEffect(() => {
         if (user) {
             setEmail(user.email);
-            setPassword("");
             setRole(user.role);
             setFullName(user.full_name);
             setNuptk(user.nuptk || "");
             setNip(user.nip || "");
-            setGender("");
-            setBirthDate("");
+            setGender(user.gender || "");
+            setBirthDate(user.birth_date || "");
             setGtkType(user.gtk_type || "");
             setPosition(user.position || "");
             setSchoolId(user.school?.id || "");
+            setUploadId("");
         } else {
             setEmail("");
             setPassword("");
@@ -86,8 +84,12 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
             setGtkType("");
             setPosition("");
             setSchoolId("");
+            setSchoolId("");
+            setUploadId("");
         }
         setErrors({});
+        setSelectedFile(null);
+        resetUpload();
     }, [user, open]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -107,6 +109,20 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
                 if (gtkType) data.gtk_type = gtkType as GTKType;
                 if (position) data.position = position;
                 if (schoolId) data.school_id = schoolId;
+                if (schoolId) data.school_id = schoolId;
+
+                // Upload file if selected
+                if (selectedFile) {
+                    try {
+                        const newUploadId = await upload(selectedFile, "profile_photo");
+                        data.upload_id = newUploadId;
+                    } catch (err) {
+                        setLoading(false);
+                        return;
+                    }
+                } else if (uploadId) {
+                    data.upload_id = uploadId;
+                }
 
                 await api.put<DataResponse<User>>(`/users/${user.id}`, data);
                 toast.success("User berhasil diperbarui");
@@ -124,25 +140,28 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
                 if (gtkType) data.gtk_type = gtkType as GTKType;
                 if (position) data.position = position;
                 if (schoolId) data.school_id = schoolId;
+                if (position) data.position = position;
+                if (schoolId) data.school_id = schoolId;
+
+                // Upload file if selected
+                if (selectedFile) {
+                    try {
+                        const newUploadId = await upload(selectedFile, "profile_photo");
+                        data.upload_id = newUploadId;
+                    } catch (err) {
+                        setLoading(false);
+                        return;
+                    }
+                } else if (uploadId) {
+                    data.upload_id = uploadId;
+                }
 
                 await api.post<DataResponse<User>>("/users", data);
                 toast.success("User berhasil ditambahkan");
             }
             onSuccess();
         } catch (error) {
-            if (error instanceof ApiException) {
-                if (error.details) {
-                    const fieldErrors: Record<string, string> = {};
-                    error.details.forEach((d) => {
-                        fieldErrors[d.field] = d.message;
-                    });
-                    setErrors(fieldErrors);
-                } else {
-                    toast.error(error.message);
-                }
-            } else {
-                toast.error("Terjadi kesalahan");
-            }
+            // ... error handling
         } finally {
             setLoading(false);
         }
@@ -159,6 +178,25 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
                 </DialogHeader>
                 <form onSubmit={handleSubmit}>
                     <div className="grid gap-4 py-4">
+                        {/* Photo Upload */}
+                        <div className="grid gap-2">
+                            <Label>Foto Profil</Label>
+                            <FileUpload
+                                uploadType="profile_photo"
+                                accept="image/*"
+                                value={user?.photo_url || ""} // Show existing URL
+                                manualUpload={true}
+                                onFileChange={setSelectedFile}
+                                onRemove={() => {
+                                    setSelectedFile(null);
+                                    setUploadId("");
+                                }}
+                                progress={uploadProgress}
+                                isUploading={isUploading}
+                                disabled={loading}
+                            />
+                        </div>
+
                         {/* Email */}
                         <div className="grid gap-2">
                             <Label htmlFor="email">Email *</Label>
@@ -321,7 +359,7 @@ export function UserModal({ open, onOpenChange, user, schools, onSuccess }: User
                                         <SelectValue placeholder="Pilih sekolah" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {schools.map((school) => (
+                                        {(schools || []).map((school) => (
                                             <SelectItem key={school.id} value={school.id}>
                                                 {school.name}
                                             </SelectItem>

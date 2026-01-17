@@ -51,7 +51,7 @@ export default function UsersPage() {
     // Fetch schools for filter
     useEffect(() => {
         api.get<ListResponse<School>>("/schools", { limit: 200 })
-            .then((res) => setSchools(res.data))
+            .then((res) => setSchools(res.data || []))
             .catch(() => { });
     }, []);
 
@@ -68,7 +68,7 @@ export default function UsersPage() {
             if (statusFilter !== "all") params.is_active = statusFilter === "active" ? "true" : "false";
 
             const response = await api.get<ListResponse<UserListItem>>("/users", params);
-            setUsers(response.data);
+            setUsers(response.data || []);
             setTotalPages(response.meta.total_pages);
             setTotalCount(response.meta.total_count);
         } catch (error) {

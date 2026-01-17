@@ -111,7 +111,7 @@ export function AppSidebar({ pendingCount = 0 }: { pendingCount?: number }) {
         user?.role === "super_admin" ? [...superAdminNav, ...commonNav] : commonNav;
 
     return (
-        <Sidebar collapsible="icon">
+        <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
@@ -207,6 +207,17 @@ export function AppSidebar({ pendingCount = 0 }: { pendingCount?: number }) {
                                     <span className="text-sm font-medium">Theme</span>
                                     <ThemeToggle />
                                 </div>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                    <Link href="/dashboard/profile" className="cursor-pointer w-full flex items-center">
+                                        <div className="mr-2 flex items-center justify-center">
+                                            <div className="h-4 w-4 bg-primary/10 rounded-full flex items-center justify-center text-[10px] font-bold text-primary">
+                                                {user?.full_name ? getInitials(user.full_name) : "U"}
+                                            </div>
+                                        </div>
+                                        Profil Saya
+                                    </Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={handleLogout}>
                                     <LogOut className="mr-2 size-4" />

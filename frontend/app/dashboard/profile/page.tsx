@@ -26,6 +26,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { FileUpload } from "@/components/ui/file-upload";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import { Pencil } from "lucide-react";
 import type { DataResponse, User, Gender } from "@/types";
 
@@ -107,15 +108,22 @@ export default function ProfilePage() {
     const [photoModalOpen, setPhotoModalOpen] = useState(false);
     const [uploadId, setUploadId] = useState("");
 
+    // Manual Upload
+    const { upload, isUploading, progress: uploadProgress, reset: resetUpload } = useFileUpload();
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
     const handleUpdatePhoto = async () => {
-        if (!uploadId) return;
+        if (!selectedFile) return;
         setLoading(true);
         try {
-            await api.patch("/me/photo", { upload_id: uploadId });
+            const newUploadId = await upload(selectedFile, "profile_photo");
+            await api.patch("/me/photo", { upload_id: newUploadId });
             toast.success("Foto profil berhasil diperbarui");
             setPhotoModalOpen(false);
             setUploadId("");
+            setSelectedFile(null);
             refreshUser();
+            resetUpload();
         } catch (error) {
             if (error instanceof ApiException) {
                 toast.error(error.message);
@@ -281,19 +289,26 @@ export default function ProfilePage() {
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <FileUpload
+                            uploadType="profile_photo"
                             accept=".jpg,.jpeg,.png"
                             value={""} // Always empty for new upload
-                            onChange={setUploadId}
-                            disabled={loading}
-                            onRemove={() => setUploadId("")}
+                            manualUpload={true}
+                            onFileChange={setSelectedFile}
+                            onRemove={() => {
+                                setSelectedFile(null);
+                                setUploadId("");
+                            }}
+                            progress={uploadProgress}
+                            isUploading={isUploading}
+                            disabled={loading || isUploading}
                         />
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setPhotoModalOpen(false)} disabled={loading}>
                             Batal
                         </Button>
-                        <Button onClick={handleUpdatePhoto} disabled={!uploadId || loading}>
-                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Button onClick={handleUpdatePhoto} disabled={!selectedFile || loading || isUploading}>
+                            {(loading || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Simpan Foto
                         </Button>
                     </DialogFooter>

@@ -116,8 +116,11 @@ export interface UserListItem {
   email: string;
   role: UserRole;
   full_name: string;
+  photo_url?: string;
   nuptk?: string;
   nip?: string;
+  gender?: Gender;
+  birth_date?: string;
   gtk_type?: GTKType;
   position?: string;
   is_active: boolean;
@@ -229,6 +232,7 @@ export interface CreateUserRequest {
   gtk_type?: GTKType;
   position?: string;
   school_id?: string;
+  upload_id?: string;
 }
 
 export interface UpdateUserRequest {
@@ -240,6 +244,7 @@ export interface UpdateUserRequest {
   gtk_type?: GTKType;
   position?: string;
   school_id?: string;
+  upload_id?: string;
 }
 
 export interface UpdateTalentRequest {

@@ -56,7 +56,7 @@ export default function SekolahPage() {
             if (statusFilter !== "all") params.status = statusFilter;
 
             const response = await api.get<ListResponse<School>>("/schools", params);
-            setSchools(response.data);
+            setSchools(response.data || []);
             setTotalPages(response.meta.total_pages);
             setTotalCount(response.meta.total_count);
         } catch (error) {

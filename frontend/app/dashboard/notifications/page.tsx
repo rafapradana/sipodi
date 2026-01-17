@@ -21,7 +21,7 @@ export default function NotificationsPage() {
         setLoading(true);
         try {
             const response = await api.get<ListResponse<Notification>>("/me/notifications");
-            setNotifications(response.data);
+            setNotifications(response.data || []);
         } catch (error) {
             console.error("Failed to list notifications:", error);
             toast.error("Gagal memuat notifikasi");

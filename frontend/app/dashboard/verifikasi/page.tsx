@@ -68,7 +68,7 @@ export default function VerifikasiPage() {
             if (search) params.search = search;
 
             const response = await api.get<ListResponse<TalentListItem>>("/verifications/talents", params);
-            setTalents(response.data);
+            setTalents(response.data || []);
             setTotalPages(response.meta.total_pages);
             setTotalCount(response.meta.total_count);
             setSelectedIds(new Set());
@@ -166,6 +166,7 @@ export default function VerifikasiPage() {
 
     const getTalentSummary = (talent: TalentListItem): string => {
         const detail = talent.detail;
+        if (!detail) return "-";
         if ("activity_name" in detail) return detail.activity_name;
         if ("competition_name" in detail) return detail.competition_name;
         if ("interest_name" in detail) return detail.interest_name;

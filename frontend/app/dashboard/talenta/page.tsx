@@ -67,6 +67,7 @@ export default function TalentaPage() {
     const [selectedTalent, setSelectedTalent] = useState<Talent | null>(null);
     const [detailModal, setDetailModal] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [viewId, setViewId] = useState<string | null>(null);
 
     const fetchTalents = useCallback(async () => {
         setLoading(true);
@@ -83,7 +84,7 @@ export default function TalentaPage() {
             const endpoint = isAdmin ? "/talents" : "/me/talents";
 
             const response = await api.get<ListResponse<TalentListItem>>(endpoint, params);
-            setTalents(response.data);
+            setTalents(response.data || []);
             setTotalPages(response.meta.total_pages);
             setTotalCount(response.meta.total_count);
         } catch (error) {
@@ -111,18 +112,9 @@ export default function TalentaPage() {
 
     const handleEdit = async (id: string) => {
         try {
-            // Need to fetch detail first to edit
-            const endpoint = isGTK ? `me/talents/${id}` : `talents/${id}`;
-            // Wait, /me/talents/:id is for DELETE/PUT but GET is not explicitly listed in router for GTK detail?
-            // Router: protected.Get("/me/talents", ...list)
-            // Router: protected.Get("/talents/:id", ...getByID) <- accessible to admin/superadmin only? 
-            // Ah, let's check router again.
-            // Line 107: `talents.Get("/:id", r.talentHandler.GetByID)` is protected but inside `talents` group?
-            // Wait, line 105: `talents := protected.Group("/talents")`.
-            // No middleware on Group.
-            // Line 106: `talents.Get("/", middleware...List)` -> role restricted.
-            // Line 107: `talents.Get("/:id", r.talentHandler.GetByID)` -> NO role middleware? So it inherits AuthMiddleware from `protected` group.
-            // So GTK CAN access `GET /talents/:id`! Nice.
+            const endpoint = `/talents/${id}`; // Admin and GTK (if owner) can both use this for GET, or use /me/talents for GTK if restricted.
+            // But line 127 in original code used /talents/${id} which seemed to work for GTK too (if ownership check passes).
+            // Actually, for Admin we definitely want `/talents/${id}`.
 
             const response = await api.get<DataResponse<Talent>>(`/talents/${id}`);
             setSelectedTalent(response.data);
@@ -131,6 +123,16 @@ export default function TalentaPage() {
             toast.error("Gagal memuat detail talenta");
         }
     };
+    // Router: protected.Get("/talents/:id", ...getByID) <- accessible to admin/superadmin only? 
+    // Ah, let's check router again.
+    // Line 107: `talents.Get("/:id", r.talentHandler.GetByID)` is protected but inside `talents` group?
+    // Wait, line 105: `talents := protected.Group("/talents")`.
+    // No middleware on Group.
+    // Line 106: `talents.Get("/", middleware...List)` -> role restricted.
+    // Line 107: `talents.Get("/:id", r.talentHandler.GetByID)` -> NO role middleware? So it inherits AuthMiddleware from `protected` group.
+    // So GTK CAN access `GET /talents/:id`! Nice.
+
+
 
     const handleView = (id: string) => {
         // Just set ID for DetailModal
@@ -139,12 +141,13 @@ export default function TalentaPage() {
         // I'll use a separate state variable `viewId`.
     };
     // Wait, I used `selectedTalent` for CreateModal (full object) and `detailModal` uses ID.
-    const [viewId, setViewId] = useState<string | null>(null);
+
 
     const handleDelete = async () => {
         if (!deleteId) return;
         try {
-            await api.delete(`/me/talents/${deleteId}`);
+            const endpoint = isAdmin ? `/talents/${deleteId}` : `/me/talents/${deleteId}`;
+            await api.delete(endpoint);
             toast.success("Talenta berhasil dihapus");
             fetchTalents();
         } catch (error) {
@@ -156,6 +159,7 @@ export default function TalentaPage() {
 
     const getTalentSummary = (talent: TalentListItem): string => {
         const detail = talent.detail;
+        if (!detail) return "-";
         if ("activity_name" in detail) return detail.activity_name;
         if ("competition_name" in detail) return detail.competition_name;
         if ("interest_name" in detail) return detail.interest_name;
@@ -179,12 +183,10 @@ export default function TalentaPage() {
                             Export
                         </Button>
                     )}
-                    {isGTK && (
-                        <Button onClick={handleCreate}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Ajukan Talenta
-                        </Button>
-                    )}
+                    <Button onClick={handleCreate}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        {isAdmin ? "Tambah Talenta" : "Ajukan Talenta"}
+                    </Button>
                 </div>
             </div>
 
@@ -301,7 +303,8 @@ export default function TalentaPage() {
                                             <Button variant="ghost" size="icon" onClick={() => setViewId(talent.id)}>
                                                 <Eye className="h-4 w-4" />
                                             </Button>
-                                            {isGTK && talent.status === "pending" && (
+
+                                            {(isAdmin || (isGTK && (talent.status === "pending" || talent.status === "rejected"))) && (
                                                 <>
                                                     <Button variant="ghost" size="icon" onClick={() => handleEdit(talent.id)}>
                                                         <Pencil className="h-4 w-4" />

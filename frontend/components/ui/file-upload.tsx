@@ -15,9 +15,14 @@ interface FileUploadProps {
     maxSize?: number; // in bytes
     value?: string; // URL of existing file
     onChange?: (uploadId: string) => void;
+    onFileChange?: (file: File | null) => void; // New: used for manual upload
     onRemove?: () => void;
     className?: string;
     disabled?: boolean;
+    uploadType: "profile_photo" | "talent_certificate";
+    manualUpload?: boolean;
+    progress?: number;
+    isUploading?: boolean;
 }
 
 export function FileUpload({
@@ -25,15 +30,43 @@ export function FileUpload({
     maxSize = 5 * 1024 * 1024, // 5MB default
     value,
     onChange,
+    onFileChange,
     onRemove,
     className,
     disabled = false,
+    uploadType,
+    manualUpload = false,
+    progress: externalProgress,
+    isUploading: externalIsUploading,
 }: FileUploadProps) {
-    const [file, setFile] = useState<File | null>(null);
-    const [uploading, setUploading] = useState(false);
-    const [progress, setProgress] = useState(0);
+    const [internalFile, setInternalFile] = useState<File | null>(null);
+    const [internalUploading, setInternalUploading] = useState(false);
+    const [internalProgress, setInternalProgress] = useState(0);
     const [uploadId, setUploadId] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [internalError, setInternalError] = useState<string | null>(null);
+
+    // Derived states
+    const uploading = manualUpload ? externalIsUploading : internalUploading;
+    const progress = manualUpload ? (externalProgress || 0) : internalProgress;
+    const error = internalError;
+
+    // Preview logic
+    const [previewUrl, setPreviewUrl] = useState<string>("");
+
+    // Effect to handle preview URL
+    React.useEffect(() => {
+        if (value) {
+            setPreviewUrl(value);
+            // If value exists (edit mode), we might want to clear internal file if it was set
+        } else if (internalFile) {
+            const url = URL.createObjectURL(internalFile);
+            setPreviewUrl(url);
+            return () => URL.revokeObjectURL(url);
+        } else {
+            setPreviewUrl("");
+        }
+    }, [value, internalFile]);
+
 
     const formatFileSize = (bytes: number) => {
         if (bytes === 0) return "0 Bytes";
@@ -49,20 +82,25 @@ export function FileUpload({
 
             // Validate size
             if (selectedFile.size > maxSize) {
-                setError(`File terlalu besar. Maksimal ${formatFileSize(maxSize)}`);
+                setInternalError(`File terlalu besar. Maksimal ${formatFileSize(maxSize)}`);
                 return;
             }
 
-            setError(null);
-            setFile(selectedFile);
-            handleUpload(selectedFile);
+            setInternalError(null);
+            setInternalFile(selectedFile);
+
+            if (manualUpload) {
+                if (onFileChange) onFileChange(selectedFile);
+            } else {
+                handleUpload(selectedFile);
+            }
         }
     };
 
     const handleUpload = async (fileToUpload: File) => {
-        setUploading(true);
-        setProgress(0);
-        setError(null);
+        setInternalUploading(true);
+        setInternalProgress(0);
+        setInternalError(null);
 
         try {
             // 1. Get presigned URL
@@ -70,6 +108,7 @@ export function FileUpload({
                 filename: fileToUpload.name,
                 size: fileToUpload.size,
                 content_type: fileToUpload.type,
+                upload_type: uploadType,
             });
 
             const { upload_id, presigned_url } = presignRes.data;
@@ -82,12 +121,12 @@ export function FileUpload({
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
                     const percentComplete = (e.loaded / e.total) * 100;
-                    setProgress(percentComplete);
+                    setInternalProgress(Math.round(percentComplete)); // Use Math.round
                 }
             };
 
             xhr.onload = async () => {
-                if (xhr.status === 200) {
+                if (xhr.status >= 200 && xhr.status < 300) {
                     // 3. Confirm upload
                     try {
                         await api.post(`/uploads/${upload_id}/confirm`);
@@ -96,21 +135,21 @@ export function FileUpload({
                         toast.success("File berhasil diupload");
                     } catch (err) {
                         console.error("Confirmation error:", err);
-                        setError("Gagal konfirmasi upload");
+                        setInternalError("Gagal konfirmasi upload");
                         toast.error("Gagal konfirmasi upload");
                     } finally {
-                        setUploading(false);
+                        setInternalUploading(false);
                     }
                 } else {
-                    setError("Gagal upload file");
-                    setUploading(false);
+                    setInternalError("Gagal upload file");
+                    setInternalUploading(false);
                     toast.error("Gagal upload file ke server storage");
                 }
             };
 
             xhr.onerror = () => {
-                setError("Network error saat upload");
-                setUploading(false);
+                setInternalError("Network error saat upload");
+                setInternalUploading(false);
                 toast.error("Network error saat upload");
             };
 
@@ -119,57 +158,28 @@ export function FileUpload({
         } catch (err) {
             console.error("Upload error:", err);
             if (err instanceof ApiException) {
-                setError(err.message);
+                setInternalError(err.message);
             } else {
-                setError("Gagal memulai upload");
+                setInternalError("Gagal memulai upload");
             }
-            setUploading(false);
+            setInternalUploading(false);
             toast.error("Gagal memulai upload");
         }
     };
 
     const handleRemove = () => {
-        setFile(null);
+        setInternalFile(null);
         setUploadId(null);
-        setProgress(0);
-        setError(null);
+        setInternalProgress(0);
+        setInternalError(null);
+        if (manualUpload && onFileChange) onFileChange(null);
         if (onRemove) onRemove();
         if (onChange) onChange("");
     };
 
-    // If there's an existing value (URL) and no new file selected
-    if (value && !file) {
-        return (
-            <div className={cn("relative flex items-center justify-between rounded-md border p-3", className)}>
-                <div className="flex items-center gap-2 overflow-hidden">
-                    <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <a
-                        href={value}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="truncate text-sm text-blue-600 hover:underline"
-                    >
-                        Lihat File
-                    </a>
-                </div>
-                {!disabled && (
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={onRemove}
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
-                )}
-            </div>
-        );
-    }
-
     return (
         <div className={cn("space-y-3", className)}>
-            {!file ? (
+            {!previewUrl ? (
                 <div className={cn(
                     "relative flex flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 px-6 py-10 text-center transition hover:bg-muted/50",
                     disabled && "cursor-not-allowed opacity-60 hover:bg-transparent"
@@ -208,45 +218,56 @@ export function FileUpload({
                 <div className="rounded-md border p-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="rounded-full bg-muted p-2">
-                                <File className="h-4 w-4" />
-                            </div>
-                            <div className="grid gap-0.5">
-                                <p className="text-sm font-medium truncate max-w-[200px]">{file.name}</p>
-                                <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                            </div>
-                        </div>
+                            {/* Preview Thumbnail */}
+                            {accept.includes("image") || previewUrl.match(/\.(jpg|jpeg|png)$/i) ? (
+                                <img
+                                    src={previewUrl}
+                                    alt="Preview"
+                                    className="h-10 w-10 rounded object-cover border"
+                                />
+                            ) : (
+                                <div className="rounded-full bg-muted p-2">
+                                    <File className="h-4 w-4" />
+                                    end
+                            )}
+
+                                    <div className="grid gap-0.5">
+                                        <p className="text-sm font-medium truncate max-w-[200px]">{internalFile?.name || "File Tersimpan"}</p>
+                                        <p className="text-xs text-muted-foreground">{internalFile ? formatFileSize(internalFile.size) : "Siap"}</p>
+                                    </div>
+                                </div>
+                        
                         {!uploading && !disabled && (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="text-muted-foreground hover:text-destructive"
-                                onClick={handleRemove}
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-muted-foreground hover:text-destructive"
+                                    onClick={handleRemove}
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+
+                        {(uploading || progress > 0) && (
+                            <div className="mt-3 space-y-1">
+                                <div className="flex justify-between text-xs">
+                                    <span>{uploading ? "Mengupload..." : (manualUpload && !uploadId ? "Menunggu Submit" : "Selesai")}</span>
+                                    <span>{Math.round(progress)}%</span>
+                                </div>
+                                <Progress value={progress} className="h-1" />
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="mt-2 text-xs text-destructive flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                {error}
+                            </div>
                         )}
                     </div>
-
-                    {(uploading || progress > 0) && (
-                        <div className="mt-3 space-y-1">
-                            <div className="flex justify-between text-xs">
-                                <span>{uploading ? "Mengupload..." : (uploadId ? "Selesai" : "Menunggu")}</span>
-                                <span>{Math.round(progress)}%</span>
-                            </div>
-                            <Progress value={progress} className="h-1" />
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="mt-2 text-xs text-destructive flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            {error}
-                        </div>
-                    )}
-                </div>
             )}
-        </div>
-    );
+                </div>
+            );
 }
