@@ -304,6 +304,7 @@ func (h *UserHandler) toUserListResponse(c *fiber.Ctx, user *domain.User) domain
 		Email:     user.Email,
 		Role:      user.Role,
 		FullName:  user.FullName,
+		PhotoURL:  user.PhotoURL,
 		NUPTK:     user.NUPTK,
 		NIP:       user.NIP,
 		GTKType:   user.GTKType,

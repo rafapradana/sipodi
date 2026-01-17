@@ -49,6 +49,7 @@ type UserListResponse struct {
 	Email     string     `json:"email"`
 	Role      UserRole   `json:"role"`
 	FullName  string     `json:"full_name"`
+	PhotoURL  *string    `json:"photo_url,omitempty"`
 	NUPTK     *string    `json:"nuptk,omitempty"`
 	NIP       *string    `json:"nip,omitempty"`
 	GTKType   *GTKType   `json:"gtk_type,omitempty"`

@@ -230,8 +230,8 @@ export default function UsersPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-[80px]">Foto</TableHead>
                             <TableHead>Nama</TableHead>
-                            <TableHead>Email</TableHead>
                             <TableHead>Role</TableHead>
                             <TableHead>Sekolah</TableHead>
                             <TableHead>Jenis GTK</TableHead>
@@ -261,8 +261,27 @@ export default function UsersPage() {
                         ) : (
                             users.map((user) => (
                                 <TableRow key={user.id}>
-                                    <TableCell className="font-medium">{user.full_name}</TableCell>
-                                    <TableCell>{user.email}</TableCell>
+                                    <TableCell>
+                                        <div className="h-10 w-10 rounded-full overflow-hidden bg-muted flex items-center justify-center border">
+                                            {user.photo_url ? (
+                                                <img
+                                                    src={user.photo_url}
+                                                    alt={user.full_name}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <span className="text-xs font-semibold text-muted-foreground">
+                                                    {user.full_name.charAt(0).toUpperCase()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{user.full_name}</span>
+                                            <span className="text-xs text-muted-foreground">{user.email}</span>
+                                        </div>
+                                    </TableCell>
                                     <TableCell>
                                         <Badge variant="outline">{USER_ROLE_LABELS[user.role]}</Badge>
                                     </TableCell>
